@@ -1,0 +1,5 @@
+# Dependencies only needed for local development/testing, kept out of
+# requirements.txt so a deployed container doesn't install a test runner.
+-r requirements.txt
+
+pytest==8.3.4

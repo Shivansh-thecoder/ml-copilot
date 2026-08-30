@@ -1,0 +1,31 @@
+# Isolated dependency file for backend/mcp/ -- install into backend/mcp/.venv,
+# NOT backend/.venv. See backend/mcp/README.md section 4 for why: mcp's SSE
+# transport (via sse-starlette) requires starlette>=0.49.1, which is
+# incompatible with backend/requirements.txt's fastapi==0.115.6 (requires
+# starlette<0.42.0). The two apps cannot share one environment.
+#
+# Setup:
+#   cd backend
+#   python -m venv mcp/.venv
+#   mcp/.venv/Scripts/pip install -r mcp/requirements.txt
+#
+# mcp==1.29.0, not the newer 2.0.0: 2.0.0 removes the mcp.server.fastmcp.FastMCP
+# high-level API this sprint's server.py skeleton is written against. See
+# README.md section 4 for the full comparison.
+mcp==1.29.0
+
+# --- ML engine (Phase B) ---
+# The actual pandas/scikit-learn computation the MCP tools expose lives here
+# too (backend/mcp/ml_engine/), not in backend/.venv or backend/app/ -- kept
+# out of both so neither the FastAPI app nor the LangGraph/LangChain process
+# needs these. Verified conflict-free with mcp==1.29.0 (pip check clean).
+pandas==3.0.5
+numpy==2.5.2
+scikit-learn==1.9.0
+scipy==1.18.1
+joblib==1.5.3
+
+# --- Testing (Phase B) ---
+# Not needed to RUN the server, only to run backend/mcp/ml_engine's own
+# test suite (backend/mcp/.venv/Scripts/python.exe -m pytest ml_engine/tests).
+pytest==9.1.1
