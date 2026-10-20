@@ -8,8 +8,13 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+COPY mcp/requirements.txt /tmp/mcp-requirements.txt
+RUN python -m venv /opt/mcp-venv \
+    && /opt/mcp-venv/bin/pip install --no-cache-dir -r /tmp/mcp-requirements.txt
+ENV MCP_SERVER_PYTHON=/opt/mcp-venv/bin/python
+
 COPY . .
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["sh", "-c", "python -m alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]

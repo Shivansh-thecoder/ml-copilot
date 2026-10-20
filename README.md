@@ -148,6 +148,7 @@ python -m venv .venv
 
 python -m venv mcp/.venv
 mcp/.venv/Scripts/pip install -r mcp/requirements.txt
+# mcp/.venv/bin/pip install -r mcp/requirements.txt  # macOS/Linux
 
 cp .env.example .env    # fill in OPENAI_API_KEY
 
@@ -158,6 +159,11 @@ cp .env.example .env    # fill in OPENAI_API_KEY
 The API is now at `http://localhost:8000` (`/docs` for the OpenAPI UI).
 The MCP server itself doesn't need to be started separately — the
 LangGraph process spawns it as a subprocess per tool call.
+The launcher uses `mcp/.venv/Scripts/python.exe` on Windows and
+`mcp/.venv/bin/python` on macOS/Linux. Set `MCP_SERVER_PYTHON` to override
+the interpreter path. The Docker backend installs its isolated MCP
+environment at `/opt/mcp-venv` and sets this override so the Compose
+source bind mount does not hide it. It applies database migrations on startup.
 
 ### Frontend
 

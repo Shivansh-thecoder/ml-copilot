@@ -35,6 +35,8 @@ real async implementations; `_sync` wrappers are what nodes import.
 """
 
 import asyncio
+import os
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -46,12 +48,16 @@ from mcp.types import Tool
 # where both mcp/.venv (the server's isolated environment) and
 # mcp/server.py live.
 _BACKEND_DIR = Path(__file__).resolve().parents[2]
-_MCP_SERVER_PYTHON = _BACKEND_DIR / "mcp" / ".venv" / "Scripts" / "python.exe"
 _MCP_SERVER_SCRIPT = _BACKEND_DIR / "mcp" / "server.py"
 
 
 def _server_params() -> StdioServerParameters:
-    return StdioServerParameters(command=str(_MCP_SERVER_PYTHON), args=[str(_MCP_SERVER_SCRIPT)])
+    # Containers can keep the server environment outside a bind-mounted /app.
+    python = os.environ.get("MCP_SERVER_PYTHON")
+    if not python:
+        executable = ("Scripts", "python.exe") if sys.platform == "win32" else ("bin", "python")
+        python = str(_BACKEND_DIR.joinpath("mcp", ".venv", *executable))
+    return StdioServerParameters(command=python, args=[str(_MCP_SERVER_SCRIPT)])
 
 
 @asynccontextmanager

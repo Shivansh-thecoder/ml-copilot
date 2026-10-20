@@ -1,0 +1,10 @@
+.venv
+mcp/.venv
+**/__pycache__
+**/.pytest_cache
+.env
+.env.*
+!.env.example
+*.db
+storage
+mcp/storage

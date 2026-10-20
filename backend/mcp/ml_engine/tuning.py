@@ -103,6 +103,7 @@ def tune_model(
         cv=cv,
         random_state=random_state,
         refit=True,
+        return_train_score=True,
         error_score="raise",
     )
     search.fit(X_train, y_train)
@@ -115,16 +116,14 @@ def tune_model(
     else:
         test_metrics = compute_regression_metrics(y_test, y_pred)
 
-    # Diagnostic compares the CV-search's best score (its closest analogue
-    # to a "training-side" score, since RandomizedSearchCV doesn't expose
-    # a plain train score directly) against the held-out test score.
-    # sklearn's neg_* scorers report MAE/RMSE negated (its "higher score
-    # = better" convention) -- flip back to the true positive value
-    # before comparing against test_metrics, which is already positive.
+    # Compare the selected candidate's training and validation fold means.
+    # The held-out test metrics remain separate from fit diagnostics.
     best_cv_score = float(search.best_score_)
+    train_score = float(search.cv_results_["mean_train_score"][search.best_index_])
     if primary_metric in ("mae", "rmse"):
         best_cv_score = -best_cv_score
-    diagnostic = diagnose_fit(best_cv_score, test_metrics.get(primary_metric, best_cv_score), primary_metric)
+        train_score = -train_score
+    diagnostic = diagnose_fit(train_score, best_cv_score, primary_metric)
 
     run_id = str(uuid.uuid4())
     artifact_path = save_model_artifact(best_pipeline, run_id, model_name)
