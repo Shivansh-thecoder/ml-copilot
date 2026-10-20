@@ -121,3 +121,18 @@ def test_best_model_ranked_by_cv_not_train_score(regression_df):
     # lower RMSE is better -- confirm results are sorted ascending by cv_mean rmse
     rmse_values = [c["cv_mean"]["rmse"] for c in result["results"]]
     assert rmse_values == sorted(rmse_values)
+
+
+def test_string_labels_train_tune_and_predict(binary_classification_df):
+    import joblib
+    from ml_engine.tuning import tune_model
+
+    df = binary_classification_df.copy()
+    df['churned'] = df['churned'].map({0: 'no', 1: 'yes'})
+    args = dict(dataset_id='strings', dataset_name='strings', target_column='churned', task_type='classification', cv_folds=3)
+    baseline = train_and_compare_models(df, **args)
+    tuned = tune_model(df, **args, model_name='logistic_regression', n_iter=2)
+    for result in [*baseline['results'], tuned]:
+        assert {'f1', 'roc_auc', 'pr_auc'} <= result['test_metrics'].keys()
+        model = joblib.load(result['artifact_path'])
+        assert set(model.predict(df.drop(columns='churned'))) <= {'no', 'yes'}

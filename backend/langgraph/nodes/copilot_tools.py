@@ -26,10 +26,11 @@ open-ended agent loop.
 """
 
 import json
+import math
 
 from llm.model import get_chat_model
 from mcp_client.client import call_mcp_tool_sync, list_mcp_tools_sync
-from nodes.copilot_common import MAX_RETRIES_PER_STAGE
+from nodes.copilot_common import MAX_RETRIES_PER_STAGE, last_result
 from nodes.copilot_control import check_limits
 from state import CopilotState
 
@@ -238,6 +239,13 @@ def tune_stage(state: CopilotState) -> dict:
         f"dataset '{state['dataset_id']}', target column '{state['target_column']}', "
         f"task type '{state['task_type']}'."
     )
+    train_result = last_result(state, "train")
+    evaluation = train_result.get("evaluation_configuration") if train_result else None
+    if evaluation:
+        instruction += (
+            f" Use cv_folds={evaluation['cv_folds']} and test_size={evaluation['test_size']} "
+            "to match the baseline evaluation."
+        )
     update = run_tool_stage(state, "tune", instruction)
     if "errors" in update:
         # Recoverable: mark it so, but don't let it look like the fatal
@@ -246,7 +254,28 @@ def tune_stage(state: CopilotState) -> dict:
         return update
 
     result = update["tool_results"][0]["result"]
-    update["run_id"] = result["run_id"]  # tuning produced a new, better-tuned run
+    train_result = last_result(state, "train")
+    baseline = next(r for r in train_result["results"] if r["model"] == state["selected_model"])
+    metric = train_result["primary_metric"]
+    baseline_score = baseline["cv_mean"][metric]
+    tuned_score = result.get("best_cv_score")
+    comparable = (
+        result.get("primary_metric") == metric
+        and result.get("model") == state["selected_model"]
+        and result.get("evaluation_configuration") == train_result.get("evaluation_configuration")
+        and isinstance(tuned_score, (int, float))
+        and math.isfinite(tuned_score)
+        and math.isfinite(baseline_score)
+    )
+    improved = comparable and (
+        tuned_score < baseline_score if metric in {"rmse", "mae"} else tuned_score > baseline_score
+    )
+    if improved:
+        update["run_id"] = result["run_id"]
+        outcome = "Tuned model selected because its cross-validation score improved."
+    else:
+        outcome = "Baseline retained because tuning did not produce a comparable, strictly better cross-validation score."
+    update["tuning_reason"] = f"{state.get('tuning_reason', '')} {outcome}".strip()
     return update
 
 

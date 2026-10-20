@@ -241,3 +241,39 @@ cd frontend && npm run lint && npx tsc --noEmit && npm run build
   the target column can't be confidently determined, the graph pauses
   (not restarts) and resumes from exactly that point once the frontend
   submits an answer.
+
+## Evaluation and model-selection guarantees
+
+- **One definition of F1:** classification uses macro-averaged precision,
+  recall, and F1 in cross-validation, hyperparameter search, and held-out
+  evaluation. Each class receives equal weight, so majority-class accuracy
+  cannot hide poor minority-class performance. The API's `f1` field means
+  macro F1 for both binary and multiclass targets.
+- **Original labels survive training:** targets such as `yes`/`no` and
+  nonconsecutive integer labels work without manual recoding. Binary ROC-AUC
+  and PR-AUC use the probability column for `estimator.classes_[1]` as the
+  positive class. Undefined AUC on a single-class holdout is omitted.
+- **Tuning must earn promotion:** a completed search replaces the selected
+  baseline only when its finite CV score strictly improves (higher F1,
+  lower RMSE). Ties and worse scores retain the baseline run and artifact;
+  the final report describes the model actually selected. Held-out test
+  scores do not decide promotion. CV scores retain full precision for
+  selection and are formatted only for display.
+
+Regression tests cover imbalanced binary and multiclass scoring, string
+labels through training/tuning/artifact reload, probability-column ordering,
+non-finite tuning scores, and baseline retention in the final report.
+Historical experiments created before this metric policy used different F1
+averages and should be rerun before comparing their scores with new runs.
+
+### Portfolio summary
+
+Built a tabular ML copilot with FastAPI, LangGraph, and an isolated MCP
+service: leakage-safe scikit-learn pipelines, reproducible cross-validation,
+bounded hyperparameter search, persisted model inference, and deterministic
+model promotion backed by regression tests. The LLM orchestrates the workflow
+and explains measured results; Python owns evaluation and selection.
+
+This is a development project, not a claim of production scale or benchmark
+superiority. Live LLM behavior requires provider credentials; the integration
+suite exercises real MCP and ML computation with a scripted LLM.

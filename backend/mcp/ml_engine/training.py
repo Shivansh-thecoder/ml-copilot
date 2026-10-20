@@ -30,6 +30,7 @@ from .diagnostics import diagnose_fit
 from .evaluation import (
     HIGHER_IS_BETTER,
     choose_primary_metric,
+    classification_scoring,
     compute_classification_metrics,
     compute_regression_metrics,
 )
@@ -116,7 +117,7 @@ def train_and_compare_models(
         )
 
         cv_raw = cross_validate(
-            pipeline, X_train, y_train, cv=cv, scoring=scoring, return_train_score=True
+            pipeline, X_train, y_train, cv=cv, scoring=scoring, return_train_score=True, error_score="raise"
         )
         cv_mean = {m: _destandardize(m, float(cv_raw[f"test_{m}"].mean())) for m in scoring}
         cv_std = {m: float(cv_raw[f"test_{m}"].std()) for m in scoring}
@@ -127,7 +128,7 @@ def train_and_compare_models(
 
         if task_type == "classification":
             y_proba = pipeline.predict_proba(X_test) if hasattr(pipeline, "predict_proba") else None
-            test_metrics = compute_classification_metrics(y_test, y_pred, y_proba)
+            test_metrics = compute_classification_metrics(y_test, y_pred, y_proba, classes=pipeline.classes_)
         else:
             test_metrics = compute_regression_metrics(y_test, y_pred)
 
@@ -155,7 +156,7 @@ def train_and_compare_models(
         results.append(
             {
                 "model": model_name,
-                "cv_mean": {k: round(v, 4) for k, v in cv_mean.items()},
+                "cv_mean": cv_mean,
                 "cv_std": {k: round(v, 4) for k, v in cv_std.items()},
                 "test_metrics": {k: round(v, 4) for k, v in test_metrics.items()},
                 "diagnostic": diagnostic,
@@ -168,6 +169,12 @@ def train_and_compare_models(
     best_model = results[0]["model"] if results else None
 
     return {
+        "evaluation_configuration": {
+            "cv_folds": effective_cv_folds,
+            "test_size": test_size,
+            "random_state": random_state,
+            "classification_average": "macro" if task_type == "classification" else None,
+        },
         "run_id": run_id,
         "dataset_id": dataset_id,
         "target_column": target_column,
@@ -195,12 +202,7 @@ _NEGATED_SCORERS = {"mae", "rmse"}
 
 def _sklearn_scoring_for(task_type: str, n_classes: int | None) -> dict:
     if task_type == "classification":
-        scoring = {
-            "accuracy": "accuracy",
-            "precision": "precision_weighted",
-            "recall": "recall_weighted",
-            "f1": "f1_weighted",
-        }
+        scoring = classification_scoring()
         if n_classes == 2:
             scoring["roc_auc"] = "roc_auc"
         return scoring

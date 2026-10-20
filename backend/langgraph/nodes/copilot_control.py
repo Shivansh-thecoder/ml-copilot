@@ -175,7 +175,7 @@ def finalize_node(state: CopilotState) -> dict:
     best = next(r for r in train_result["results"] if r["model"] == state["selected_model"])
     tune_result = last_result(state, "tune") if state.get("tuning_performed") else None
 
-    if tune_result:
+    if tune_result and tune_result["run_id"] == state["run_id"]:
         primary_metric = tune_result["primary_metric"]
         validation_performance = (
             f"After tuning: best cross-validated {primary_metric}={tune_result['best_cv_score']:.4f}; "

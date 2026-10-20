@@ -24,7 +24,7 @@ from sklearn.model_selection import KFold, RandomizedSearchCV, StratifiedKFold, 
 from sklearn.pipeline import Pipeline
 
 from .diagnostics import diagnose_fit
-from .evaluation import choose_primary_metric, compute_classification_metrics, compute_regression_metrics
+from .evaluation import classification_scoring, choose_primary_metric, compute_classification_metrics, compute_regression_metrics
 from .models import get_candidate_models, get_model_search_space
 from .persistence import record_experiment, save_model_artifact
 from .preprocessing import build_preprocessor
@@ -103,6 +103,7 @@ def tune_model(
         cv=cv,
         random_state=random_state,
         refit=True,
+        error_score="raise",
     )
     search.fit(X_train, y_train)
 
@@ -110,7 +111,7 @@ def tune_model(
     y_pred = best_pipeline.predict(X_test)
     if task_type == "classification":
         y_proba = best_pipeline.predict_proba(X_test) if hasattr(best_pipeline, "predict_proba") else None
-        test_metrics = compute_classification_metrics(y_test, y_pred, y_proba)
+        test_metrics = compute_classification_metrics(y_test, y_pred, y_proba, classes=best_pipeline.classes_)
     else:
         test_metrics = compute_regression_metrics(y_test, y_pred)
 
@@ -146,12 +147,18 @@ def tune_model(
     )
 
     return {
+        "evaluation_configuration": {
+            "cv_folds": effective_cv_folds,
+            "test_size": test_size,
+            "random_state": random_state,
+            "classification_average": "macro" if task_type == "classification" else None,
+        },
         "run_id": run_id,
         "model": model_name,
         "primary_metric": primary_metric,
         "primary_metric_reason": metric_reason,
         "best_params": search.best_params_,
-        "best_cv_score": round(best_cv_score, 4),
+        "best_cv_score": best_cv_score,
         "test_metrics": {k: round(v, 4) for k, v in test_metrics.items()},
         "diagnostic": diagnostic,
         "search_configuration": {
@@ -163,12 +170,11 @@ def tune_model(
     }
 
 
-def _single_scorer_for(metric_name: str) -> str:
+def _single_scorer_for(metric_name: str):
+    if metric_name in classification_scoring():
+        return classification_scoring()[metric_name]
     mapping = {
         "accuracy": "accuracy",
-        "f1": "f1_weighted",
-        "precision": "precision_weighted",
-        "recall": "recall_weighted",
         "roc_auc": "roc_auc",
         "rmse": "neg_root_mean_squared_error",
         "mae": "neg_mean_absolute_error",
